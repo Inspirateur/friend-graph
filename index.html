@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Friend Graph</title>
+	<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+	<div id="wrap">
+		<div id="title" contenteditable="true" spellcheck="false">Friend Graph</div>
+
+		<div id="graphRow">
+			<div id="graphHost">
+				<svg id="graph" xmlns="http://www.w3.org/2000/svg">
+					<defs id="defs"></defs>
+					<g id="edges"></g>
+					<g id="nodes"></g>
+				</svg>
+			</div>
+			<div id="panel">
+				<div id="panelName" contenteditable="true" spellcheck="false"></div>
+				<img id="panelImg" alt="" />
+				<div class="row">
+					<input id="panelFile" type="file" accept="image/*" />
+				</div>
+				<h3>Stats</h3>
+				<div class="row">Direct connections: <span id="panelDegree">0</span></div>
+				<div class="row">
+					<button id="panelDelete">Delete</button>
+				</div>
+			</div>
+		</div>
+
+		<div id="inputs">
+			<div id="names"></div>
+			<div id="actions">
+				<input id="year" type="number" min="1900" max="2100" step="1" placeholder="Year" />
+				<button id="add">Add</button>
+			</div>
+		</div>
+		<datalist id="friendNames"></datalist>
+	</div>
+
+	<script src="vec2.js"></script>
+	<script src="graph.js"></script>
+	<script src="main.js"></script>
+</body>
+</html>
