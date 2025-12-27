@@ -34,13 +34,13 @@ class Graph {
 		/** @type {number} */
 		this.springK = 0.6;
 		/** @type {number} */
-		this.springRest = 140;
+		this.springRest = 150;
 		/** @type {number} */
-		this.repelK = 2600;
+		this.repelK = 5000;
 		/** @type {number} */
 		this.closeRepelK = 500;
 		/** @type {number} */
-		this.centerK = 0.020;
+		this.centerK = 0.5;
 
 		/** @type {Array<{x:number,y:number}>} */
 		this.jitter = [
@@ -166,7 +166,7 @@ class Graph {
 					forces[i2] = vec2.add(forces[i2], fSpring);
 					forces[j] = vec2.sub(forces[j], fSpring);
 				} else {
-					var fRepel = this.repelK / (dist * dist);
+					var fRepel = this.repelK / dist;
 					var frep = vec2.mul(dir, fRepel);
 					forces[i2] = vec2.sub(forces[i2], frep);
 					forces[j] = vec2.add(forces[j], frep);
