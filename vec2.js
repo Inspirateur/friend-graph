@@ -182,6 +182,16 @@ vec2.div = function(v1, v2) {
 };
 
 /**
+ * Scale the length of the vector by a power p.
+ * @param {vec2} v The vector.
+ * @param {Number} p The power to scale the vector with.
+ * @returns {vec2} The resulting vector.
+ */
+vec2.pow = function(v, p) {
+	return vec2.mul(v, Math.pow(vec2.len(v), p-1));
+};
+
+/**
  * Check if two vectors are equal.
  * @param {vec2} v1 The first vector.
  * @param {vec2} v2 The second vector.

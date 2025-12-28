@@ -26,21 +26,12 @@ class Graph {
 		this.nodes = [];
 		/** @type {Array<[number, number, Date]>} */
 		this.edges = [];
-		/** @type {Map<string, number>} */
-		this._pairToEdgeIndex = new Map();
-		/** @type {Array<Set<number>>} */
-		this._adj = [];
-
 		/** @type {number} */
-		this.springK = 0.6;
+		this.repelK = 1000000;
 		/** @type {number} */
-		this.springRest = 150;
+		this.attractK = 0.01;
 		/** @type {number} */
-		this.repelK = 5000;
-		/** @type {number} */
-		this.closeRepelK = 500;
-		/** @type {number} */
-		this.centerK = 0.5;
+		this.centerK = 1.0;
 
 		/** @type {Array<{x:number,y:number}>} */
 		this.jitter = [
@@ -70,14 +61,12 @@ class Graph {
 		for (idx = 0; idx < this.nodes.length; idx++) {
 			if (this.nodes[idx] === null) {
 				this.nodes[idx] = new Node(name);
-				this._adj[idx] = new Set();
 				return idx;
 			}
 		}
 
 		idx = this.nodes.length;
 		this.nodes.push(new Node(name));
-		this._adj.push(new Set());
 		return idx;
 	}
 
@@ -116,7 +105,13 @@ class Graph {
 	 * @returns {number} Direct connection count.
 	 */
 	degree(i) {
-		return this._adj[i].size;
+		if (this.nodes[i] === null) return 0;
+		var d = 0;
+		for (var e = 0; e < this.edges.length; e++) {
+			var edge = this.edges[e];
+			if (edge[0] === i || edge[1] === i) d++;
+		}
+		return d;
 	}
 
 	/**
@@ -142,55 +137,72 @@ class Graph {
 		var forces = new Array(n);
 		for (var i = 0; i < n; i++) forces[i] = vec2(0, 0);
 
-		for (var i2 = 0; i2 < n; i2++) {
-			if (this.nodes[i2] === null) continue;
-			for (var j = i2 + 1; j < n; j++) {
+		// Node repulsion: applies to all pairs.
+		for (var i = 0; i < n; i++) {
+			if (this.nodes[i] === null) continue;
+			for (var j = i + 1; j < n; j++) {
 				if (this.nodes[j] === null) continue;
-				var pi = this.nodes[i2].pos;
+				var pi = this.nodes[i].pos;
 				var pj = this.nodes[j].pos;
+				// Add a small jitter to avoid zero length vectors.
 				if (vec2.eq(pi, pj)) {
 					pj = vec2.add(pj, this.jitter[j & 7]);
 				}
-				var r = vec2.sub(pj, pi);
-				var dist = vec2.len(r);
-				var dir = vec2.div(r, dist);
-                // Prevents dist to be too low to prevent repelling forces from blowing up
-                var dist = Math.max(dist, 1);
-				var connected = this._adj[i2].has(j);
-
-				// Long-range forces: spring for connected, repulsion for non-connected.
-				if (connected) {
-					var stretch = dist - this.springRest;
-					var fMag = this.springK * stretch * Math.abs(stretch) / this.springRest;
-					var fSpring = vec2.mul(dir, fMag);
-					forces[i2] = vec2.add(forces[i2], fSpring);
-					forces[j] = vec2.sub(forces[j], fSpring);
-				} else {
-					var fRepel = this.repelK / dist;
-					var frep = vec2.mul(dir, fRepel);
-					forces[i2] = vec2.sub(forces[i2], frep);
-					forces[j] = vec2.add(forces[j], frep);
-				}
-
-				// Very-strong short-range repulsion for all nodes (decays quickly).
-				var fClose = this.closeRepelK / (dist * dist * dist * dist);
-				var fcl = vec2.mul(dir, fClose);
-				forces[i2] = vec2.sub(forces[i2], fcl);
-				forces[j] = vec2.add(forces[j], fcl);
+				var f = this.nodeRepulsionForce(pi, pj);
+				forces[i] = vec2.sub(forces[i], f);
+				forces[j] = vec2.add(forces[j], f);
 			}
 		}
 
-		// Faint pull to center.
-		for (var k = 0; k < n; k++) {
-			if (this.nodes[k] === null) continue;
-			forces[k] = vec2.sub(forces[k], vec2.mul(this.nodes[k].pos, this.centerK));
+		// Edge attraction: only for connected pairs, iterating edges (no adjacency map needed).
+		for (const edge of this.edges) {
+			var i = edge[0];
+			var j = edge[1];
+			if (this.nodes[i] === null || this.nodes[j] === null) continue;
+			var pi = this.nodes[i].pos;
+			var pj = this.nodes[j].pos;
+			var edgeForce = this.edgeAttractionForce(pi, pj);
+			forces[i] = vec2.add(forces[i], edgeForce);
+			forces[j] = vec2.sub(forces[j], edgeForce);
 		}
 
-		var dt = t;
-		for (var m = 0; m < n; m++) {
-			if (this.nodes[m] === null) continue;
-			this.nodes[m].pos = vec2.add(this.nodes[m].pos, vec2.mul(forces[m], dt));
+		// Faint pull to center.
+		for (var i = 0; i < n; i++) {
+			if (this.nodes[i] === null) continue;
+			forces[i] = vec2.sub(forces[i], vec2.mul(this.nodes[i].pos, this.centerK));
 		}
+
+		for (var i = 0; i < n; i++) {
+			if (this.nodes[i] === null) continue;
+			this.nodes[i].pos = vec2.add(this.nodes[i].pos, vec2.mul(forces[i], t));
+		}
+	}
+
+	/**
+	 * Compute the attraction force between two nodes connected by an edge.
+	 * @param {{x:number,y:number}} posA Position of node A.
+	 * @param {{x:number,y:number}} posB Position of node B.
+	 * @returns {{x:number,y:number}} Attraction force vector applied to A. (B gets the opposite.)
+	 */
+	edgeAttractionForce(posA, posB) {
+		var delta = vec2.sub(posB, posA);
+		var deltaSq = vec2.pow(delta, 2);
+		return vec2.mul(deltaSq, this.attractK);
+	}
+
+	/**
+	 * Compute the repulsion force between two nodes.
+	 * @param {{x:number,y:number}} posA Position of node A. Guaranteed different from B.
+	 * @param {{x:number,y:number}} posB Position of node B. Guaranteed different from A.
+	 * @returns {{x:number,y:number}} Repulsion force vector applied to A. (B gets the opposite.)
+	 */
+	nodeRepulsionForce(posA, posB) {
+		var delta = vec2.sub(posB, posA);
+		var dist = vec2.len(delta);
+		var dir = vec2.div(delta, dist);
+		var fMag = this.repelK / (dist * dist);
+		// Cap the force magnitude to avoid extreme values at short distances.
+		return vec2.mul(dir, Math.min(fMag, 100));
 	}
 
 	/**
@@ -203,20 +215,23 @@ class Graph {
 	addOrUpdateEdge(i, j, date) {
 		var a = i < j ? i : j;
 		var b = i < j ? j : i;
-		var key = a + ":" + b;
-		var existing = this._pairToEdgeIndex.get(key);
-		if (existing !== undefined) {
+
+		var existing = -1;
+		for (var e = 0; e < this.edges.length; e++) {
+			var edge = this.edges[e];
+			if (edge[0] === a && edge[1] === b) {
+				existing = e;
+				break;
+			}
+		}
+		if (existing !== -1) {
 			if (date.getTime() < this.edges[existing][2].getTime()) {
 				this.edges[existing][2] = date;
 			}
 			return;
 		}
 
-		var idx = this.edges.length;
 		this.edges.push([a, b, date]);
-		this._pairToEdgeIndex.set(key, idx);
-		this._adj[a].add(b);
-		this._adj[b].add(a);
 	}
 
 	/**
@@ -229,7 +244,6 @@ class Graph {
 		if (this.nodes[i] === null) return [];
 
 		this.nodes[i] = null;
-		this._adj[i] = new Set();
 
 		/** @type {Array<[number, number]>} */
 		var removedPairs = [];
@@ -244,26 +258,6 @@ class Graph {
 			}
 		}
 		this.edges = kept;
-		this._rebuildEdgeIndex();
 		return removedPairs;
-	}
-
-	/**
-	 * Recompute internal edge lookup and adjacency from the current edge list.
-	 * @returns {void}
-	 */
-	_rebuildEdgeIndex() {
-		this._pairToEdgeIndex = new Map();
-		for (var i = 0; i < this._adj.length; i++) {
-			this._adj[i] = new Set();
-		}
-		for (var e = 0; e < this.edges.length; e++) {
-			var a = this.edges[e][0];
-			var b = this.edges[e][1];
-			var key = a + ":" + b;
-			this._pairToEdgeIndex.set(key, e);
-			this._adj[a].add(b);
-			this._adj[b].add(a);
-		}
 	}
 }
