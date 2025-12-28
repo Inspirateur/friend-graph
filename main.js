@@ -34,9 +34,14 @@ function svgSize(svg) {
  * @param {SVGSVGElement} svg The SVG element.
  * @returns {void}
  */
-function updateViewBox(svg) {
+function updateViewBox(svg, zoom) {
+	if (zoom === undefined) zoom = 1;
+	// Prevent invalid/negative zoom from creating a broken viewBox.
+	zoom = Math.max(0.05, zoom);
 	var s = svgSize(svg);
-	svg.setAttribute("viewBox", (-s.w / 2) + " " + (-s.h / 2) + " " + s.w + " " + s.h);
+	var vw = s.w / zoom;
+	var vh = s.h / zoom;
+	svg.setAttribute("viewBox", (-vw / 2) + " " + (-vh / 2) + " " + vw + " " + vh);
 }
 
 /**
@@ -335,6 +340,28 @@ function main() {
 	/** @type {{x:number,y:number}} */
 	var dragTarget = vec2(0, 0);
 
+	/** @type {number} */
+	var zoom = 1;
+	var minZoom = 0.2;
+	var maxZoom = 6;
+
+	/**
+	 * @param {number} v
+	 * @param {number} lo
+	 * @param {number} hi
+	 * @returns {number}
+	 */
+	function clamp(v, lo, hi) {
+		return Math.max(lo, Math.min(hi, v));
+	}
+
+	/**
+	 * @returns {void}
+	 */
+	function applyZoom() {
+		updateViewBox(svg, zoom);
+	}
+
 	/**
 	 * @param {number} idx Node index.
 	 * @param {PointerEvent} ev Pointer event.
@@ -376,6 +403,16 @@ function main() {
 	svg.addEventListener("pointermove", dragMove);
 	svg.addEventListener("pointerup", function() { endDrag(); });
 	svg.addEventListener("pointercancel", function() { endDrag(); });
+
+	// Mouse wheel zoom (no panning; graph stays centered at 0,0).
+	svg.addEventListener("wheel", function(ev) {
+		ev.preventDefault();
+		ev.stopPropagation();
+		// Smooth zoom factor based on wheel delta.
+		var factor = Math.pow(1.0015, -ev.deltaY);
+		zoom = clamp(zoom * factor, minZoom, maxZoom);
+		applyZoom();
+	}, { passive: false });
 
 	/**
 	 * @param {number} idx Node index.
@@ -481,8 +518,8 @@ function main() {
 		});
 	});
 
-	updateViewBox(svg);
-	window.addEventListener("resize", function() { updateViewBox(svg); });
+	applyZoom();
+	window.addEventListener("resize", function() { applyZoom(); });
 
 	var last = performance.now();
 	function frame(now) {
