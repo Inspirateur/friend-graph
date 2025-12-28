@@ -185,6 +185,7 @@ class Graph {
 	 * @returns {{x:number,y:number}} Attraction force vector applied to A. (B gets the opposite.)
 	 */
 	edgeAttractionForce(posA, posB) {
+		// it doesn't matter if posA == posB here because we don't divide by distance
 		var delta = vec2.sub(posB, posA);
 		var deltaSq = vec2.pow(delta, 2);
 		return vec2.mul(deltaSq, this.attractK);
@@ -192,8 +193,8 @@ class Graph {
 
 	/**
 	 * Compute the repulsion force between two nodes.
-	 * @param {{x:number,y:number}} posA Position of node A. Guaranteed different from B.
-	 * @param {{x:number,y:number}} posB Position of node B. Guaranteed different from A.
+	 * @param {{x:number,y:number}} posA Position of node A. Must be different from B.
+	 * @param {{x:number,y:number}} posB Position of node B. Must be different from A.
 	 * @returns {{x:number,y:number}} Repulsion force vector applied to A. (B gets the opposite.)
 	 */
 	nodeRepulsionForce(posA, posB) {
