@@ -105,13 +105,10 @@ class Graph {
 	 * @returns {number} Direct connection count.
 	 */
 	degree(i) {
-		if (this.nodes[i] === null) return 0;
-		var d = 0;
-		for (var e = 0; e < this.edges.length; e++) {
-			var edge = this.edges[e];
-			if (edge[0] === i || edge[1] === i) d++;
-		}
-		return d;
+		return this.edges.reduce((count, edge) => {
+			if (edge[0] === i || edge[1] === i) count++;
+			return count;
+		}, 0);
 	}
 
 	/**
@@ -217,27 +214,17 @@ class Graph {
 		var a = i < j ? i : j;
 		var b = i < j ? j : i;
 
-		var existing = -1;
-		for (var e = 0; e < this.edges.length; e++) {
-			var edge = this.edges[e];
-			if (edge[0] === a && edge[1] === b) {
-				existing = e;
-				break;
-			}
-		}
+		var existing = this.edges.findIndex(e => e[0] === a && e[1] === b);
 		if (existing !== -1) {
-			if (date.getTime() < this.edges[existing][2].getTime()) {
-				this.edges[existing][2] = date;
-			}
-			return;
+			this.edges[existing][2] = date;
+		} else {
+			this.edges.push([a, b, date]);
 		}
-
-		this.edges.push([a, b, date]);
 	}
 
 	/**
 	 * Delete a node without shifting indices; frees the index for reuse.
-	 * Removes incident edges and rebuilds internal edge lookup.
+	 * Removes incident edges.
 	 * @param {number} i Node index.
 	 * @returns {Array<[number, number]>} Removed edge endpoint pairs.
 	 */
